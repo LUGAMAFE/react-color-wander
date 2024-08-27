@@ -36,6 +36,7 @@ export default ({
     backgroundScale: 1,
     backgroundSrc: mapSrc,
     debugLuma: false,
+    lumaAlpha: 0.3,
 
     // browser options
     height: height / factor,

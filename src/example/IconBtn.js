@@ -1,23 +1,19 @@
 import React from 'react';
 
-import Button from 'material-ui/Button';
+import Button from '@mui/material/Button';
 import PropTypes from 'prop-types';
 import styled from 'styled-components';
 
-// import Input from '@material-ui/icons/Input';
-// import Photo from '@material-ui/icons/Photo';
-import Settings from '@material-ui/icons/Settings';
-import Check from '@material-ui/icons/Check';
-import ColorLens from '@material-ui/icons/ColorLens';
-import FormatColorFill from '@material-ui/icons/FormatColorFill';
-import FileDownload from '@material-ui/icons/FileDownload';
-import Fullscreen from '@material-ui/icons/Fullscreen';
-import Shuffle from '@material-ui/icons/Shuffle';
-import Pause from '@material-ui/icons/Pause';
+import Check from '@mui/icons-material/Check';
+import ColorLens from '@mui/icons-material/ColorLens';
+import FileDownload from '@mui/icons-material/FileDownload';
+import FormatColorFill from '@mui/icons-material/FormatColorFill';
+import Fullscreen from '@mui/icons-material/Fullscreen';
+import Pause from '@mui/icons-material/Pause';
+import Settings from '@mui/icons-material/Settings';
+import Shuffle from '@mui/icons-material/Shuffle';
 
 const icons = {
-  // Input,
-  // Photo,
   Check,
   ColorLens,
   FileDownload,
@@ -28,7 +24,7 @@ const icons = {
   Shuffle
 };
 
-const Icon = props => {
+const Icon = (props) => {
   const I = icons[props.name];
   return <I style={{ color: props.color, width: props.size }} />;
 };
@@ -58,7 +54,7 @@ const Btn = styled(Button)`
   }
 `;
 
-const IconBtn = props => (
+const IconBtn = (props) => (
   <Btn onClick={props.onClick} disabled={props.disabled}>
     <Icon name={props.name} />
   </Btn>

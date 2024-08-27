@@ -1,120 +1,122 @@
-import React, { Component } from 'react';
-
-import createLoop from 'raf-loop';
+/* eslint-disable no-param-reassign */
 import PropTypes from 'prop-types';
-
+import createLoop from 'raf-loop';
+import React, {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useRef
+} from 'react';
 import createConfig from './createConfig';
 import createRenderer from './createRenderer';
 
-export default class Art extends Component {
-  static propTypes = {
-    map: PropTypes.string.isRequired,
-    palette: PropTypes.arrayOf(PropTypes.string).isRequired,
-    seed: PropTypes.string,
-    height: PropTypes.number,
-    width: PropTypes.number
-  };
+const Art = forwardRef(
+  (
+    {
+      map,
+      palette,
+      seed,
+      height = window.innerHeight,
+      width = window.innerWidth
+    },
+    ref
+  ) => {
+    const canvasRef = useRef(null);
+    const loopRef = useRef(null);
+    const metadataRef = useRef({});
 
-  static defaultProps = {
-    seed: undefined,
-    height: window.innerHeight,
-    width: window.innerWidth
-  };
+    const refresh = (config) => {
+      if (loopRef.current) loopRef.current.stop();
 
-  refresh = config => {
-    if (this.loop) this.loop.stop();
+      loopRef.current = createLoop();
 
-    this.loop = createLoop();
+      const context = canvasRef.current.getContext('2d');
+      const background = new window.Image();
 
-    const context = this.canvas.getContext('2d');
-    const background = new window.Image();
-
-    const opts = Object.assign(
-      {},
-      {
+      const opts = {
         backgroundImage: background,
-        context
-      },
-      config
-    );
+        context,
+        ...config
+      };
 
-    const pixelRatio =
-      typeof opts.pixelRatio === 'number' ? opts.pixelRatio : 1;
+      const pixelRatio =
+        typeof opts.pixelRatio === 'number' ? opts.pixelRatio : 1;
 
-    this.canvas.width = opts.width * pixelRatio;
-    this.canvas.height = opts.height * pixelRatio;
+      canvasRef.current.width = opts.width * pixelRatio;
+      canvasRef.current.height = opts.height * pixelRatio;
 
-    background.onload = () => {
-      const renderer = createRenderer(opts);
+      background.onload = () => {
+        const renderer = createRenderer(opts);
 
-      if (opts.debugLuma) renderer.debugLuma();
-      else {
         renderer.clear();
 
-        // let stepCount = 0;
-
-        this.loop.on('tick', () => {
+        if (opts.debugLuma) {
+          renderer.debugLuma();
+        }
+        loopRef.current.on('tick', () => {
           renderer.step(opts.interval);
-
-          // stepCount += 1;
-
-          // if (!opts.endlessBrowser && stepCount > opts.steps) this.loop.stop();
         });
 
-        this.loop.start();
-      }
+        loopRef.current.start();
+      };
+
+      background.src = config.backgroundSrc;
     };
 
-    background.src = config.backgroundSrc;
-  };
+    const letterbox = useCallback((element, parent) => {
+      const aspectRatio = element.width / element.height;
+      const [parentWidth, parentHeight] = parent;
 
-  // resize and reposition canvas to form a letterbox view
-  letterbox = (element, parent) => {
-    const el = element;
+      const canvasWidth = parentWidth;
+      const canvasHeight = Math.round(canvasWidth / aspectRatio);
+      const yOffset = Math.floor((parentHeight - canvasHeight) / 2);
 
-    const aspect = el.width / el.height;
-    const pwidth = parent[0];
-    const pheight = parent[1];
+      element.style.top = `${yOffset}px`;
+      element.style.width = `${canvasWidth}px`;
+      element.style.height = `${canvasHeight}px`;
+    }, []);
 
-    const width = pwidth;
-    const height = Math.round(width / aspect);
-    const y = Math.floor(pheight - height) / 2;
+    const draw = () => {
+      const config = createConfig({
+        maps: [map],
+        palettes: [palette],
+        seed,
+        height,
+        width
+      });
 
-    el.style.top = `${y}px`;
-    el.style.width = `${width}px`;
-    el.style.height = `${height}px`;
-  };
+      refresh(config);
+      letterbox(canvasRef.current, [width, height]);
 
-  draw = () => {
-    const config = createConfig({
-      maps: [this.props.map],
-      palettes: [this.props.palette],
-      seed: this.props.seed,
-      height: this.props.height,
-      width: this.props.width
-    });
+      metadataRef.current = {
+        seed: config.seedName,
+        map: config.backgroundSrc,
+        palette: config.palette
+      };
+    };
 
-    this.refresh(config);
+    useImperativeHandle(ref, () => ({
+      stop: () => {
+        if (loopRef.current) loopRef.current.stop();
+      },
+      draw: () => {
+        draw();
+      },
+      data: () => canvasRef.current.toDataURL('image/png'),
+      metadata: () => metadataRef.current,
+      ref: () => canvasRef.current
+    }));
 
-    this.letterbox(this.canvas, [this.props.width, this.props.height]); // resize
-
-    this.seed = config.seedName;
-    this.map = config.backgroundSrc;
-    this.palette = config.palette;
-  };
-
-  stop = () => this.loop.stop();
-
-  ref = () => this.canvas;
-
-  data = () => this.canvas.toDataURL('image/png');
-
-  metadata = () => {
-    const { seed, map, palette } = this;
-    return { seed, map, palette };
-  };
-
-  render() {
-    return <canvas ref={ref => (this.canvas = ref)} />;
+    return <canvas ref={canvasRef} />;
   }
-}
+);
+
+Art.propTypes = {
+  map: PropTypes.string.isRequired,
+  palette: PropTypes.arrayOf(PropTypes.string).isRequired,
+  seed: PropTypes.string,
+  height: PropTypes.number,
+  width: PropTypes.number
+};
+
+export default Art;

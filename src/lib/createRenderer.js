@@ -1,8 +1,8 @@
 import clamp from 'clamp';
+import vec2 from 'gl-vec2';
 import lerp from 'lerp';
 import newArray from 'new-array';
 import SimplexNoise from 'simplex-noise';
-import vec2 from 'gl-vec2';
 
 import createPixels from './createPixels';
 import createRange from './createRange';
@@ -59,7 +59,8 @@ export default (opt = {}) => {
   const particles = newArray(count).map(() => resetParticle());
 
   const clear = () => {
-    ctx.fillStyle = palette[0];
+    const [firstPaletteColor] = palette;
+    ctx.fillStyle = firstPaletteColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   };
 
@@ -113,9 +114,22 @@ export default (opt = {}) => {
     });
   };
 
+  const debugLuma = () => {
+    ctx.save();
+    ctx.globalAlpha = opt.lumaAlpha;
+
+    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+
+    ctx.globalCompositeOperation = 'source-atop';
+    const [firstPaletteColor] = palette;
+    ctx.fillStyle = firstPaletteColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  };
+
   return {
     clear,
     step,
-    debugLuma: ctx.putImageData(heightMapImage, 0, 0)
+    debugLuma
   };
 };
