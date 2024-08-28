@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import { Component } from 'react';
 
 import Paper from '@mui/material/Paper';
 import { saveAs } from 'file-saver';
@@ -139,6 +139,7 @@ class Example extends Component {
       <Palette>
         {this.state.palette.map((color, i) => (
           <Input
+            key={color}
             onChange={(e) => this.update(i, e.target.value)}
             style={{
               backgroundColor: this.state.palette[i],

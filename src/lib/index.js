@@ -1,7 +1,6 @@
-/* eslint-disable no-param-reassign */
 import PropTypes from 'prop-types';
 import createLoop from 'raf-loop';
-import React, {
+import {
   forwardRef,
   useCallback,
   useImperativeHandle,
@@ -110,6 +109,8 @@ const Art = forwardRef(
     return <canvas ref={canvasRef} />;
   }
 );
+
+Art.displayName = 'Art';
 
 Art.propTypes = {
   map: PropTypes.string.isRequired,
