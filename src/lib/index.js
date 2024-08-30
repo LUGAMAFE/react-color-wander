@@ -1,25 +1,11 @@
 import PropTypes from 'prop-types';
 import createLoop from 'raf-loop';
-import {
-  forwardRef,
-  useCallback,
-  useImperativeHandle,
-  useRef
-} from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
 import createConfig from './createConfig';
 import createRenderer from './createRenderer';
 
 const Art = forwardRef(
-  (
-    {
-      map,
-      palette,
-      seed,
-      height = window.innerHeight,
-      width = window.innerWidth
-    },
-    ref
-  ) => {
+  ({ maps, palette, seed, height = window.innerHeight, width = window.innerWidth, debug }, ref) => {
     const canvasRef = useRef(null);
     const loopRef = useRef(null);
     const metadataRef = useRef({});
@@ -38,8 +24,7 @@ const Art = forwardRef(
         ...config
       };
 
-      const pixelRatio =
-        typeof opts.pixelRatio === 'number' ? opts.pixelRatio : 1;
+      const pixelRatio = typeof opts.pixelRatio === 'number' ? opts.pixelRatio : 1;
 
       canvasRef.current.width = opts.width * pixelRatio;
       canvasRef.current.height = opts.height * pixelRatio;
@@ -77,8 +62,9 @@ const Art = forwardRef(
 
     const draw = () => {
       const config = createConfig({
-        maps: [map],
+        maps: maps,
         palettes: [palette],
+        debug: debug,
         seed,
         height,
         width
@@ -113,11 +99,12 @@ const Art = forwardRef(
 Art.displayName = 'Art';
 
 Art.propTypes = {
-  map: PropTypes.string.isRequired,
+  maps: PropTypes.arrayOf(PropTypes.string).isRequired,
   palette: PropTypes.arrayOf(PropTypes.string).isRequired,
   seed: PropTypes.string,
   height: PropTypes.number,
-  width: PropTypes.number
+  width: PropTypes.number,
+  debug: PropTypes.bool
 };
 
 export default Art;

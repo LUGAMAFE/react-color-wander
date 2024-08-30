@@ -9,7 +9,8 @@ export default ({
   width,
   factor = 0.5,
   maps,
-  palettes
+  palettes,
+  debug = false
 }) => {
   const randomFunc = seedRandom(seed);
   const random = createRange(randomFunc);
@@ -35,7 +36,7 @@ export default ({
     backgorundFill: 'black',
     backgroundScale: 1,
     backgroundSrc: mapSrc,
-    debugLuma: false,
+    debugLuma: debug,
     lumaAlpha: 0.3,
 
     // browser options
