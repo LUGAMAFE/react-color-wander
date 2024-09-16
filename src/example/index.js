@@ -1,233 +1,130 @@
-import { Component } from 'react';
+import * as brush from 'p5.brush';
+import SimplexNoise from 'simplex-noise';
+import createPixels from './createPixels';
+import createRange from './createRange';
+import createSphere from './createSphere';
 
-import Paper from '@mui/material/Paper';
-import { saveAs } from 'file-saver';
-import styled from 'styled-components';
-import Animated from './Animated';
+export default (opt = {}) => {
+  const p = opt.p5Instance; // Obtenemos la instancia de p5.js
+  const randFunc = opt.random || Math.random;
+  const random = createRange(randFunc);
 
-import Art from '../lib';
-import IconBtn from './IconBtn';
+  const simplex = new SimplexNoise(randFunc);
+  const { width, height } = p;
+  const count = opt.count || 0;
+  const palette = opt.palette || ['#fff', '#000'];
+  const { backgroundImage } = opt;
 
-import { getRandom, invert } from './utils';
+  const maxRadius = typeof opt.maxRadius === 'number' ? opt.maxRadius : 10;
+  const startArea = typeof opt.startArea === 'number' ? opt.startArea : 0.5;
+  const pointilism = p.lerp(0.000001, 0.5, opt.pointilism);
+  const noiseScalar = opt.noiseScalar || [0.00001, 0.0001];
+  const globalAlpha = typeof opt.globalAlpha === 'number' ? opt.globalAlpha : 1;
 
-import './example.css';
+  const heightMapImage = createPixels(p, backgroundImage, {
+    scale: opt.backgroundScale,
+    fillStyle: opt.backgroundFill
+  });
 
-const isMobile = window.matchMedia('(max-width: 767px)').matches;
+  const heightMap = heightMapImage.data;
+  let time = 0;
 
-class Example extends Component {
-  state = {
-    custom: false,
-    // start in full screen if mobile
-    full: isMobile,
-    map: getRandom().map,
-    more: false,
-    palette: ['#21242b', '#61dafb', '#6d6d6d', '#292c34', '#fff'],
-    stopped: false,
-    mounted: false
+  // Crear una instancia de p5.brush usando el modo instancia
+  const myBrush = new brush.Brush(p, {
+    color: palette[0],
+    size: maxRadius,
+    mode: 'normal',
+    dynamic: false
+  });
+
+  const resetParticle = (particle = {}) => {
+    const p = particle;
+    const scale = Math.min(width, height) / 2;
+
+    p.position = createSphere([], random(0, scale * startArea), randFunc);
+    p.position[0] += width / 2;
+    p.position[1] += height / 2;
+    p.radius = random(0.01, maxRadius);
+    p.duration = random(1, 500);
+    p.time = random(0, p.duration);
+    p.velocity = [random(-1, 1), random(-1, 1)];
+    p.speed = random(0.5, 2);
+
+    p.color = palette[Math.floor(random(palette.length))];
+
+    return p;
   };
 
-  more = () => this.setState({ more: !this.state.more });
+  const particles = Array.from({ length: count }, () => resetParticle());
 
-  draw = () => {
-    // just a trick for a smooth transition when re-drawing
-    if (this.art.metadata().palette)
-      document.body.style.background = this.art.metadata().palette[0];
-
-    this.art.draw();
-
-    this.setState({ palette: this.art.metadata().palette, stopped: false });
+  const clear = () => {
+    const [firstPaletteColor] = palette;
+    p.background(firstPaletteColor);
   };
 
-  randomize = () => {
-    const random = getRandom();
+  const step = (dt) => {
+    time += dt;
 
-    this.setState({ map: random.map, palette: random.palette }, () =>
-      this.draw()
-    );
+    particles.forEach((particle) => {
+      const p = particle;
+      const x = p.position[0];
+      const y = p.position[1];
+
+      const fx = p.constrain(Math.round(x), 0, width - 1);
+      const fy = p.constrain(Math.round(y), 0, height - 1);
+
+      const heightIndex = fx + fy * width;
+      const heightValue = heightMap[heightIndex * 4] / 255;
+
+      const pS = p.lerp(noiseScalar[0], noiseScalar[1], heightValue);
+      const n = simplex.noise3D(fx * pS, fy * pS, p.duration + time);
+
+      const angle = n * Math.PI * 2;
+      const speed = p.speed + p.lerp(0.0, 2, 1 - heightValue);
+
+      p.velocity[0] += Math.cos(angle);
+      p.velocity[1] += Math.sin(angle);
+
+      const move = p.createVector(p.velocity[0], p.velocity[1]).mult(speed);
+
+      p.position[0] += move.x;
+      p.position[1] += move.y;
+
+      const s2 = pointilism;
+
+      let r = p.radius * simplex.noise3D(x * s2, y * s2, p.duration + time);
+      r *= p.lerp(0.01, 1.0, heightValue);
+
+      // Usar p5.brush para dibujar en lugar de stroke/line
+      myBrush.color = p.color;
+      myBrush.size = r * (p.time / p.duration);
+
+      // Aplicar globalAlpha usando p.tint() para el pincel
+      myBrush.opacity = globalAlpha; // Aquí usamos la opacidad global
+
+      myBrush.draw(x, y, p.position[0], p.position[1]);
+
+      p.time += dt;
+
+      if (p.time > p.duration) resetParticle(p);
+    });
   };
 
-  stop = () => {
-    this.art.stop();
+  const debugLuma = () => {
+    p.push();
+    p.tint(255, opt.lumaAlpha * 255);
+    p.image(backgroundImage, 0, 0, width, height);
 
-    this.setState({ stopped: true });
+    p.blendMode(p.MULTIPLY);
+    const [firstPaletteColor] = palette;
+    p.fill(firstPaletteColor);
+    p.rect(0, 0, width, height);
+    p.pop();
   };
 
-  customize = () => this.setState({ custom: !this.state.custom });
-
-  apply = () => this.setState({ custom: false }, () => this.draw());
-
-  full = () => this.setState({ full: !this.state.full }, () => this.draw());
-
-  download = () => {
-    this.stop();
-
-    this.art
-      .ref()
-      .toBlob((blob) => saveAs(blob, `${this.art.metadata().seed}.png`));
+  return {
+    clear,
+    step,
+    debugLuma
   };
-
-  update = (i, color) => {
-    const newPallete = this.state.palette;
-    newPallete[i] = color;
-    this.setState({ palette: newPallete });
-  };
-
-  link = (ref) => {
-    this.art = ref;
-
-    if (!this.state.mounted)
-      this.setState({ mounted: true }, () => this.draw());
-  };
-
-  renderArt = () => {
-    // this.art = {
-    //   metadata: () => ({ palette: this.state.palette }),
-    //   draw: () => null,
-    //   stop: () => null
-    // };
-
-    // return (
-    //   <div
-    //     style={{
-    //       backgroundColor: this.state.palette[1], // #eee
-    //       height: 512,
-    //       width: 512
-    //     }}
-    //   />
-    // );
-
-    if (this.state.full) {
-      return (
-        <Art
-          map={this.state.map}
-          palette={this.state.palette}
-          ref={this.link}
-        />
-      );
-    }
-
-    const size = 512;
-
-    return (
-      <Canvas {...{ size }}>
-        <Art
-          height={size}
-          map={this.state.map}
-          palette={this.state.palette}
-          ref={this.link}
-          width={size}
-        />
-      </Canvas>
-    );
-  };
-
-  renderActions = () => (
-    <div>
-      <IconBtn name="Shuffle" onClick={this.randomize} />
-      <IconBtn name="Pause" onClick={this.stop} disabled={this.state.stopped} />
-      <IconBtn name="ColorLens" onClick={this.draw} />
-      <IconBtn name="FormatColorFill" onClick={this.customize} />
-      {!isMobile && <IconBtn name="Fullscreen" onClick={this.full} />}
-      <IconBtn name="FileDownload" onClick={this.download} />
-    </div>
-  );
-
-  renderPalette = () => {
-    if (!this.state.palette) return null;
-
-    return (
-      <Palette>
-        {this.state.palette.map((color, i) => (
-          <Input
-            key={color}
-            onChange={(e) => this.update(i, e.target.value)}
-            style={{
-              backgroundColor: this.state.palette[i],
-              color: invert(this.state.palette[i])
-            }}
-            value={this.state.palette[i]}
-          />
-        ))}
-
-        <IconBtn name="Check" onClick={this.apply} />
-      </Palette>
-    );
-  };
-
-  render() {
-    // <IconBtn name="Input" onClick={this.input} />
-    // <IconBtn name="Photo" onClick={this.upload} />
-
-    const { more, custom } = this.state;
-
-    return (
-      <Animated>
-        <Container>
-          {this.renderArt()}
-
-          <Actions>
-            <Row>
-              <IconBtn name="Settings" onClick={this.more} />
-
-              <Animated items>
-                {more && <Animated item>{this.renderActions()}</Animated>}
-              </Animated>
-            </Row>
-
-            <Animated items>
-              {more && custom && (
-                <Animated item>{this.renderPalette()}</Animated>
-              )}
-            </Animated>
-          </Actions>
-        </Container>
-      </Animated>
-    );
-  }
-}
-
-const Actions = styled.div`
-  left: 10px;
-  position: absolute;
-  top: 10px;
-`;
-
-const Palette = styled.div`
-  margin-left: 240px;
-`;
-
-const Canvas = styled(Paper).attrs({ square: true })`
-  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.1) !important;
-  height: ${(props) => props.size}px;
-`;
-
-const Container = styled.div`
-  align-items: center;
-  display: flex;
-  flex: 1;
-  justify-content: center;
-`;
-
-const Input = styled.input`
-  border-radius: 0;
-  border: none;
-  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.1);
-  font-family: 'Open Sans';
-  height: 40px;
-  margin: 10px;
-  opacity: 0.75;
-  outline: 0;
-  padding-left: 10px;
-  padding-right: 10px;
-  text-align: center;
-  width: 60px;
-  &:hover {
-    opacity: 1;
-  }
-`;
-
-const Row = styled.div`
-  display: flex;
-`;
-
-export default Example;
+};

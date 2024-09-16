@@ -1,98 +1,73 @@
+import p5 from 'p5';
+import * as brush from 'p5.brush';
 import PropTypes from 'prop-types';
-import createLoop from 'raf-loop';
-import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import createConfig from './createConfig';
 import createRenderer from './createRenderer';
 
 const Art = forwardRef(
-  ({ maps, palette, seed, height = window.innerHeight, width = window.innerWidth, debug }, ref) => {
-    const canvasRef = useRef(null);
-    const loopRef = useRef(null);
+  ({ maps, palette, seed, height = window.innerHeight, width = window.innerWidth }, ref) => {
+    const p5Ref = useRef(null);
     const metadataRef = useRef({});
 
-    const refresh = (config) => {
-      if (loopRef.current) loopRef.current.stop();
+    const sketch = (p) => {
+      let renderer;
 
-      loopRef.current = createLoop();
+      p.setup = () => {
+        p.createCanvas(width, height);
 
-      const context = canvasRef.current.getContext('2d');
-      const background = new window.Image();
+        // Aquí cargamos p5.brush, que se usará en modo de instancia
+        brush.register(p);
 
-      const opts = {
-        backgroundImage: background,
-        context,
-        ...config
-      };
-
-      const pixelRatio = typeof opts.pixelRatio === 'number' ? opts.pixelRatio : 1;
-
-      canvasRef.current.width = opts.width * pixelRatio;
-      canvasRef.current.height = opts.height * pixelRatio;
-
-      background.onload = () => {
-        const renderer = createRenderer(opts);
-
-        renderer.clear();
-
-        if (opts.debugLuma) {
-          renderer.debugLuma();
-        }
-        loopRef.current.on('tick', () => {
-          renderer.step(opts.interval);
+        const config = createConfig({
+          maps: maps,
+          palettes: [palette],
+          seed,
+          height,
+          width
         });
 
-        loopRef.current.start();
+        renderer = createRenderer({
+          p5Instance: p,
+          ...config
+        });
       };
 
-      background.src = config.backgroundSrc;
-    };
-
-    const letterbox = useCallback((element, parent) => {
-      const aspectRatio = element.width / element.height;
-      const [parentWidth, parentHeight] = parent;
-
-      const canvasWidth = parentWidth;
-      const canvasHeight = Math.round(canvasWidth / aspectRatio);
-      const yOffset = Math.floor((parentHeight - canvasHeight) / 2);
-
-      element.style.top = `${yOffset}px`;
-      element.style.width = `${canvasWidth}px`;
-      element.style.height = `${canvasHeight}px`;
-    }, []);
-
-    const draw = () => {
-      const config = createConfig({
-        maps: maps,
-        palettes: [palette],
-        debug: debug,
-        seed,
-        height,
-        width
-      });
-
-      refresh(config);
-      letterbox(canvasRef.current, [width, height]);
-
-      metadataRef.current = {
-        seed: config.seedName,
-        map: config.backgroundSrc,
-        palette: config.palette
+      p.draw = () => {
+        renderer.clear();
+        renderer.step(p.deltaTime);
+        if (renderer.debugLuma) {
+          renderer.debugLuma();
+        }
       };
     };
 
     useImperativeHandle(ref, () => ({
       stop: () => {
-        if (loopRef.current) loopRef.current.stop();
+        p5Ref.current.noLoop();
       },
       draw: () => {
-        draw();
+        p5Ref.current.loop();
       },
-      data: () => canvasRef.current.toDataURL('image/png'),
-      metadata: () => metadataRef.current,
-      ref: () => canvasRef.current
+      data: () => {
+        return p5Ref.current.canvas.toDataURL('image/png');
+      },
+      metadata: () => {
+        return metadataRef.current;
+      },
+      ref: () => {
+        return p5Ref.current.canvas;
+      }
     }));
 
-    return <canvas ref={canvasRef} />;
+    React.useEffect(() => {
+      p5Ref.current = new p5(sketch);
+      return () => {
+        p5Ref.current.remove();
+      };
+    }, []);
+
+    return <div ref={p5Ref}></div>;
   }
 );
 
@@ -103,8 +78,9 @@ Art.propTypes = {
   palette: PropTypes.arrayOf(PropTypes.string).isRequired,
   seed: PropTypes.string,
   height: PropTypes.number,
-  width: PropTypes.number,
-  debug: PropTypes.bool
+  width: PropTypes.number
 };
+
+Art.displayName = 'Art';
 
 export default Art;
